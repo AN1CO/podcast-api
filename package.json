@@ -6,7 +6,7 @@
   "scripts": {
     "test": "npm test"
   },
-  "author": "",
+  "author": "AN1CO",
   "license": "ISC",
   "dependencies": {
     "dotenv": "^16.4.5",
