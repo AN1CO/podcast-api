@@ -1,5 +1,5 @@
 # Exercise: Podcast API
-data processing for analytics on podcasts.
+Data processing for analytics on podcasts.
 
 ## Requirements
 

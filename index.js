@@ -10,26 +10,15 @@ require("isomorphic-fetch"); // Polyfills the browser Fetch API in Node.js
  */
 const fs = require("fs/promises");
 // alternative to just get local data
-// const { readFileSync } = require("fs");
-// const tsvFileData = readFileSync("./data/logs.tsv").toString();
+const { readFileSync } = require("fs");
+const tsvFileData = readFileSync("./data/logs.tsv").toString();
 
-exports.processLogs = async function () {
-  let tsvFileData = "";
-  // get logs tsv data through promise
-  try {
-    const data = await fs.readFile("./data/logs.tsv", {
-      encoding: "utf8",
-    });
-    tsvFileData = data;
-  } catch (err) {
-    console.log(err);
-  }
-
+async function processLogs() {
   // tsv file breaks every item by line break
   const tsvLines = tsvFileData.split("\n");
-  // for some reason \t wasnt working
+  // for some reason \t wasnt working, think vscode changed the spacing
   const podcastData = tsvLines.map((item) => item.split("  "));
-  //get only the ones that have GET http requests
+  // filter to only the ones that have GET http requests
   const filteredGETRequests = podcastData.filter((item) => item[5] === "GET");
 
   const jsonPodcastRequestData = filteredGETRequests.map((item) => {
@@ -40,17 +29,30 @@ exports.processLogs = async function () {
       episodeId: episodeID,
     };
   });
-  return jsonPodcastRequestData;
-};
 
-// Create a function to make an API call.
+  // theres some dupes, so im filtering
+  const uniqPodcastRequestData = jsonPodcastRequestData.filter(
+    (value, index, self) =>
+      index ===
+      self.findIndex(
+        (item) =>
+          item.episodeId === value.episodeId &&
+          item.userAgent === value.userAgent &&
+          item.requestIp === value.requestIp
+      )
+  );
+
+  return uniqPodcastRequestData;
+}
+
+// create a function to make an API call
 async function makeAPICall(endpoint) {
   const response = await fetch(endpoint);
   const data = await response.json();
   return data;
 }
 
-// Create a function to make multiple API calls in parallel.
+// create a function to make multiple API calls in parallel
 async function makeMultipleAPICalls(endpoints) {
   const promises = endpoints.map(makeAPICall);
   const responses = await Promise.all(promises);
@@ -67,6 +69,7 @@ async function fetchAndBuildEpisodesData() {
     console.log(err);
   }
 
+  // lessen the amount of calls, theres instances of same ep id but different user agent
   const uniqEndpoints = [
     ...new Set(logsData.map((item) => apiBaseUrl + item.episodeId)),
   ];
@@ -77,7 +80,23 @@ async function fetchAndBuildEpisodesData() {
     console.log(err);
   }
 
-  console.log("responses", responses);
+  // combine response data with logs data into new arr of objects
+  const newItemsData = logsData.map((logItem) => {
+    let matchedItem = responses.find(
+      (resItem) => resItem.id === logItem.episodeId
+    );
+
+    return {
+      ...logItem,
+      ...{
+        episodeTitle: matchedItem.title,
+        seriesName: matchedItem.seriesMeta.seriesName,
+        editors: matchedItem.credits.editors,
+      },
+    };
+  });
+
+  return newItemsData;
 }
 
 const MAX_BATCH_SIZE = 3;
